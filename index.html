@@ -179,6 +179,9 @@
         const finalScoreElement = document.getElementById('finalScore');
         const restartBtn = document.getElementById('restartBtn');
         const startBtn = document.getElementById('startBtn');
+
+        let enemyImage = new Image();
+        enemyImage.src = 'enemy.png'; // Ваш файл с изображением врага
         
         // Звуковые элементы
         const shootSound = document.getElementById('shootSound');
@@ -315,16 +318,15 @@
             }
             
             draw() {
-                // Рисуем перевернутый треугольник (острым концом к игроку)
-                ctx.fillStyle = this.type === 'large' ? '#8B0000' : 
-                                (this.type === 'medium' ? '#8B4513' : '#4682B4');
-                
-                ctx.beginPath();
-                ctx.moveTo(this.x + this.size.width/2, this.y + this.size.height); // Нижняя точка
-                ctx.lineTo(this.x, this.y); // Левая верхняя точка
-                ctx.lineTo(this.x + this.size.width, this.y); // Правая верхняя точка
-                ctx.closePath();
-                ctx.fill();
+                // Рисуем изображение врага с масштабированием
+                if (enemyImage.complete) {
+                    ctx.drawImage(enemyImage, this.x, this.y, this.size.width, this.size.height);
+                } else {
+                    // Фолбэк если изображение не загрузилось
+                    ctx.fillStyle = this.type === 'large' ? '#8B0000' : 
+                                    (this.type === 'medium' ? '#8B4513' : '#4682B4');
+                    ctx.fillRect(this.x, this.y, this.size.width, this.size.height);
+                }
                 
                 // Для большого самолета рисуем здоровье
                 if (this.type === 'large') {
@@ -338,17 +340,11 @@
             checkHit(bullet) {
                 if (Math.random() < this.dodgeChance) return false;
                 
-                // Проверка попадания в перевернутый треугольник
-                const triangleBottom = { x: this.x + this.size.width/2, y: this.y + this.size.height };
-                const triangleLeft = { x: this.x, y: this.y };
-                const triangleRight = { x: this.x + this.size.width, y: this.y };
-                
-                return pointInTriangle(
-                    { x: bullet.x, y: bullet.y },
-                    triangleBottom,
-                    triangleLeft,
-                    triangleRight
-                );
+                // Проверка попадания в прямоугольник изображения
+                return bullet.x > this.x && 
+                       bullet.x < this.x + this.size.width &&
+                       bullet.y > this.y && 
+                       bullet.y < this.y + this.size.height;
             }
         }
         
