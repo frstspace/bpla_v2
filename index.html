@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>БПЛА</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            touch-action: none;
+            background: linear-gradient(to bottom, #87CEEB, #E0F7FA);
+            font-family: Arial, sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        
+        #gameCanvas {
+            display: block;
+            width: 100%;
+            height: 100vh;
+            touch-action: none;
+        }
+        
+        #controls {
+            position: fixed;
+            bottom: 20px;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 20px;
+            box-sizing: border-box;
+        }
+        
+        #moveButtons {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .control-btn {
+            width: 60px;
+            height: 60px;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            touch-action: manipulation;
+        }
+        
+        #fireBtn {
+            width: 80px;
+            height: 80px;
+            background-color: rgba(255, 0, 0, 0.7);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            touch-action: manipulation;
+        }
+        
+        #score {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-size: 20px;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 5px 10px;
+            border-radius: 5px;
+        }
+        
+        #healthBar {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            width: 100px;
+            height: 15px;
+            background-color: rgba(255, 0, 0, 0.3);
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        
+        #healthFill {
+            height: 100%;
+            width: 100%;
+            background-color: red;
+            transition: width 0.3s;
+        }
+        
+        #gameOver {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 36px;
+            z-index: 100;
+        }
+        
+        #startScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 36px;
+            z-index: 200;
+        }
+        
+        #restartBtn, #startBtn {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 24px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    
+    <div id="score">Очки: 0</div>
+    <div id="healthBar">
+        <div id="healthFill"></div>
+    </div>
+    
+    <div id="controls">
+        <div id="moveButtons">
+            <div class="control-btn" id="leftBtn">←</div>
+            <div class="control-btn" id="rightBtn">→</div>
+        </div>
+        <div class="control-btn" id="fireBtn">ОГОНЬ</div>
+    </div>
+    
+    <div id="startScreen">
+        <h1>БПЛА</h1>
+        <button id="startBtn">Начать игру</button>
+    </div>
+    
+    <div id="gameOver">
+        <h1>Игра Окончена</h1>
+        <p id="finalScore">Ваш счет: 0</p>
+        <button id="restartBtn">Играть снова</button>
+    </div>
+
+    <!-- Элементы для звуков -->
+    <audio id="shootSound" src="shoot.mp3" preload="auto"></audio>
+    <audio id="explosionSound" src="explosion.mp3" preload="auto"></audio>
+    <audio id="engineSound" src="engine.mp3" loop preload="auto"></audio>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
+        const healthFillElement = document.getElementById('healthFill');
+        const gameOverElement = document.getElementById('gameOver');
+        const startScreenElement = document.getElementById('startScreen');
+        const finalScoreElement = document.getElementById('finalScore');
+        const restartBtn = document.getElementById('restartBtn');
+        const startBtn = document.getElementById('startBtn');
+        
+        // Звуковые элементы
+        const shootSound = document.getElementById('shootSound');
+        const explosionSound = document.getElementById('explosionSound');
+        const engineSound = document.getElementById('engineSound');
+        
+        // Размеры canvas
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        
+        // Игровые переменные
+        let score = 0;
+        let health = 100;
+        let gameRunning = false;
+        let lastEnemySpawn = 0;
+        let lastBossSpawn = 0;
+        let enemies = [];
+        let bullets = [];
+        let leftPressed = false;
+        let rightPressed = false;
+        let firePressed = false;
+        let lastFired = 0;
+        
+        // Размеры игровых объектов
+        const gunWidth = 40;
+        const gunHeight = 60;
+        const bulletRadius = 5;
+        const enemySizes = {
+            small: { width: 40, height: 40, health: 1, score: 10 },
+            medium: { width: 60, height: 60, health: 2, score: 25 },
+            large: { width: 100, height: 100, health: 5, score: 50 }
+        };
+        
+        // Позиция пушки
+        let gunX = canvas.width / 2 - gunWidth / 2;
+        const gunY = canvas.height - gunHeight - 20;
+        
+        // Управление
+        document.getElementById('leftBtn').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            leftPressed = true;
+        });
+        
+        document.getElementById('leftBtn').addEventListener('touchend', (e) => {
+            e.preventDefault();
+            leftPressed = false;
+        });
+        
+        document.getElementById('rightBtn').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            rightPressed = true;
+        });
+        
+        document.getElementById('rightBtn').addEventListener('touchend', (e) => {
+            e.preventDefault();
+            rightPressed = false;
+        });
+        
+        document.getElementById('fireBtn').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            firePressed = true;
+        });
+        
+        document.getElementById('fireBtn').addEventListener('touchend', (e) => {
+            e.preventDefault();
+            firePressed = false;
+        });
+        
+        // Клавиатура для тестирования на ПК
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') leftPressed = true;
+            if (e.key === 'ArrowRight') rightPressed = true;
+            if (e.key === ' ') firePressed = true;
+        });
+        
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowLeft') leftPressed = false;
+            if (e.key === 'ArrowRight') rightPressed = false;
+            if (e.key === ' ') firePressed = false;
+        });
+        
+        // Класс пули
+        class Bullet {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.radius = bulletRadius;
+                this.speed = 8;
+            }
+            
+            update() {
+                this.y -= this.speed;
+            }
+            
+            draw() {
+                ctx.fillStyle = '#FFD700';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        
+        // Класс вражеского самолета (треугольник)
+        class Enemy {
+            constructor(type) {
+                this.type = type;
+                this.size = enemySizes[type];
+                this.x = Math.random() * (canvas.width - this.size.width);
+                this.y = -this.size.height;
+                this.speed = 2 + Math.random() * 2;
+                this.health = this.size.health;
+                this.dodgeChance = 0.3;
+                this.dodgeDirection = Math.random() > 0.5 ? 1 : -1;
+                this.dodgeTimer = 0;
+                this.dodgeDuration = 0;
+            }
+            
+            update() {
+                this.y += this.speed;
+                
+                this.dodgeTimer++;
+                if (this.dodgeTimer > 60 && Math.random() < 0.02) {
+                    this.dodgeDirection = Math.random() > 0.5 ? 1 : -1;
+                    this.dodgeDuration = 20 + Math.random() * 20;
+                    this.dodgeTimer = 0;
+                }
+                
+                if (this.dodgeDuration > 0) {
+                    this.x += this.dodgeDirection * 3;
+                    this.dodgeDuration--;
+                }
+                
+                this.x = Math.max(0, Math.min(canvas.width - this.size.width, this.x));
+            }
+            
+            draw() {
+                // Рисуем перевернутый треугольник (острым концом к игроку)
+                ctx.fillStyle = this.type === 'large' ? '#8B0000' : 
+                                (this.type === 'medium' ? '#8B4513' : '#4682B4');
+                
+                ctx.beginPath();
+                ctx.moveTo(this.x + this.size.width/2, this.y + this.size.height); // Нижняя точка
+                ctx.lineTo(this.x, this.y); // Левая верхняя точка
+                ctx.lineTo(this.x + this.size.width, this.y); // Правая верхняя точка
+                ctx.closePath();
+                ctx.fill();
+                
+                // Для большого самолета рисуем здоровье
+                if (this.type === 'large') {
+                    ctx.fillStyle = 'red';
+                    ctx.fillRect(this.x, this.y + this.size.height + 5, this.size.width, 5);
+                    ctx.fillStyle = 'green';
+                    ctx.fillRect(this.x, this.y + this.size.height + 5, this.size.width * (this.health / this.size.health), 5);
+                }
+            }
+            
+            checkHit(bullet) {
+                if (Math.random() < this.dodgeChance) return false;
+                
+                // Проверка попадания в перевернутый треугольник
+                const triangleBottom = { x: this.x + this.size.width/2, y: this.y + this.size.height };
+                const triangleLeft = { x: this.x, y: this.y };
+                const triangleRight = { x: this.x + this.size.width, y: this.y };
+                
+                return pointInTriangle(
+                    { x: bullet.x, y: bullet.y },
+                    triangleBottom,
+                    triangleLeft,
+                    triangleRight
+                );
+            }
+        }
+        
+        // Функция для проверки точки в треугольнике
+        function pointInTriangle(p, a, b, c) {
+            // Вычисляем векторы
+            const v0 = [c.x - a.x, c.y - a.y];
+            const v1 = [b.x - a.x, b.y - a.y];
+            const v2 = [p.x - a.x, p.y - a.y];
+            
+            // Вычисляем скалярные произведения
+            const dot00 = v0[0]*v0[0] + v0[1]*v0[1];
+            const dot01 = v0[0]*v1[0] + v0[1]*v1[1];
+            const dot02 = v0[0]*v2[0] + v0[1]*v2[1];
+            const dot11 = v1[0]*v1[0] + v1[1]*v1[1];
+            const dot12 = v1[0]*v2[0] + v1[1]*v2[1];
+            
+            // Вычисляем барицентрические координаты
+            const invDenom = 1 / (dot00 * dot11 - dot01 * dot01);
+            const u = (dot11 * dot02 - dot01 * dot12) * invDenom;
+            const v = (dot00 * dot12 - dot01 * dot02) * invDenom;
+            
+            // Проверяем, находится ли точка в треугольнике
+            return (u >= 0) && (v >= 0) && (u + v < 1);
+        }
+        
+        // Создание вражеского самолета
+        function spawnEnemy() {
+            let type = 'small';
+            const rand = Math.random();
+            
+            if (rand < 0.1) {
+                type = 'medium';
+            }
+            
+            enemies.push(new Enemy(type));
+        }
+        
+        // Создание босса (большого самолета)
+        function spawnBoss() {
+            enemies.push(new Enemy('large'));
+        }
+        
+        // Обработка столкновений
+        function checkCollisions() {
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                for (let j = enemies.length - 1; j >= 0; j--) {
+                    if (enemies[j].checkHit(bullets[i])) {
+                        enemies[j].health--;
+                        
+                        if (enemies[j].health <= 0) {
+                            score += enemies[j].size.score;
+                            explosionSound.currentTime = 0;
+                            explosionSound.play();
+                            enemies.splice(j, 1);
+                        }
+                        
+                        bullets.splice(i, 1);
+                        break;
+                    }
+                }
+            }
+            
+            // Проверка, долетел ли враг до игрока
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                if (enemies[i].y + enemies[i].size.height > gunY) {
+                    health -= enemies[i].type === 'large' ? 20 : (enemies[i].type === 'medium' ? 10 : 5);
+                    healthFillElement.style.width = `${health}%`;
+                    enemies.splice(i, 1);
+                    
+                    if (health <= 0) {
+                        gameOver();
+                    }
+                }
+            }
+        }
+        
+        // Конец игры
+        function gameOver() {
+            gameRunning = false;
+            engineSound.pause();
+            finalScoreElement.textContent = `Ваш счет: ${score}`;
+            gameOverElement.style.display = 'flex';
+        }
+        
+        // Начало игры
+        function startGame() {
+            score = 0;
+            health = 100;
+            healthFillElement.style.width = '100%';
+            enemies = [];
+            bullets = [];
+            gunX = canvas.width / 2 - gunWidth / 2;
+            gameRunning = true;
+            startScreenElement.style.display = 'none';
+            gameOverElement.style.display = 'none';
+            lastEnemySpawn = 0;
+            lastBossSpawn = 0;
+            
+            // Запуск звуков
+            try {
+                engineSound.play();
+            } catch (e) {
+                console.log("Автовоспроизведение звука заблокировано:", e);
+            }
+            
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // Перезапуск игры
+        restartBtn.addEventListener('click', startGame);
+        startBtn.addEventListener('click', startGame);
+        
+        // Основной игровой цикл
+        function gameLoop(timestamp) {
+            if (!gameRunning) return;
+            
+            // Очистка экрана
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Управление пушкой
+            if (leftPressed) gunX = Math.max(0, gunX - 5);
+            if (rightPressed) gunX = Math.min(canvas.width - gunWidth, gunX + 5);
+            
+            // Стрельба
+            if (firePressed && timestamp - lastFired > 300) {
+                bullets.push(new Bullet(gunX + gunWidth / 2, gunY));
+                shootSound.currentTime = 0;
+                shootSound.play();
+                lastFired = timestamp;
+            }
+            
+            // Спавн врагов
+            if (timestamp - lastEnemySpawn > 1000) {
+                spawnEnemy();
+                lastEnemySpawn = timestamp;
+            }
+            
+            // Спавн босса каждые 20 секунд
+            if (timestamp - lastBossSpawn > 20000) {
+                spawnBoss();
+                lastBossSpawn = timestamp;
+            }
+            
+            // Обновление и отрисовка пуль
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                bullets[i].update();
+                bullets[i].draw();
+                
+                if (bullets[i].y < 0) {
+                    bullets.splice(i, 1);
+                }
+            }
+            
+            // Обновление и отрисовка врагов
+            for (let enemy of enemies) {
+                enemy.update();
+                enemy.draw();
+            }
+            
+            // Отрисовка пушки
+            ctx.fillStyle = '#333';
+            ctx.fillRect(gunX, gunY, gunWidth, gunHeight);
+            ctx.fillStyle = '#555';
+            ctx.fillRect(gunX + gunWidth/2 - 5, gunY - 20, 10, 20);
+            
+            // Проверка столкновений
+            checkCollisions();
+            
+            // Обновление интерфейса
+            scoreElement.textContent = `Очки: ${score}`;
+            
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // Обработка изменения размера окна
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            gunX = Math.min(gunX, canvas.width - gunWidth);
+        });
+    </script>
+</body>
+</html>
