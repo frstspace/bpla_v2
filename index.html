@@ -214,7 +214,7 @@
         
         // Позиция пушки
         let gunX = canvas.width / 2 - gunWidth / 2;
-        const gunY = canvas.height - gunHeight - 20;
+        const gunY = canvas.height - gunHeight - 170;
         
         // Управление
         document.getElementById('leftBtn').addEventListener('touchstart', (e) => {
@@ -288,7 +288,7 @@
                 this.size = enemySizes[type];
                 this.x = Math.random() * (canvas.width - this.size.width);
                 this.y = -this.size.height;
-                this.speed = 2 + Math.random() * 2;
+                this.speed = 1 + Math.random() * 1;
                 this.health = this.size.health;
                 this.dodgeChance = 0.3;
                 this.dodgeDirection = Math.random() > 0.5 ? 1 : -1;
